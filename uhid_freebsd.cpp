@@ -75,24 +75,54 @@ static PyObject* enumerate(PyObject* self)
   }
 
   auto ret = PyList_New(0);
-  for (const auto& device : devices)
+  if (!ret)
   {
-    auto dict = PyDict_New();
-    auto deviceKey = Py_BuildValue("s", "device");
-    auto deviceName = Py_BuildValue("s", device.first.c_str());
-    PyDict_SetItem(dict, deviceKey, deviceName);
-    auto pathKey = Py_BuildValue("s", "path");
-    auto pathValue = Py_BuildValue("s",
-      std::string("/dev/" + device.first).c_str());
-    PyDict_SetItem(dict, pathKey, pathValue);
-    auto vendorKey = Py_BuildValue("s", "vendor_id");
-    auto vendorId = Py_BuildValue("l", device.second.first);
-    PyDict_SetItem(dict, vendorKey, vendorId);
-    auto productKey = Py_BuildValue("s", "product_id");
-    auto productId = Py_BuildValue("l", device.second.second);
-    PyDict_SetItem(dict, productKey, productId);
-    PyList_Append(ret, dict);
+    PyErr_SetString(PyExc_MemoryError, "PyList_New");
+    return NULL;
   }
+  std::vector<PyObject*> refs;
+
+  try
+  {
+    for (const auto& device : devices)
+    {
+      auto dict = PyDict_New();
+      if (!dict)
+        throw std::runtime_error("dict");
+      refs.push_back(dict);
+
+      auto add = [&](const char* k, PyObject* val) -> void {
+        if (!val)
+          throw std::runtime_error("val");
+        refs.push_back(val);
+        auto key = Py_BuildValue("s", k);
+        if (!key)
+          throw std::runtime_error(k);
+        refs.push_back(key);
+        if (PyDict_SetItem(dict, key, val) < 0)
+          throw std::runtime_error("PyDict_SetItem");
+      };
+
+      add("device", Py_BuildValue("s", device.first.c_str()));
+      add("path", Py_BuildValue(
+        "s", std::string("/dev/" + device.first).c_str()));
+      add("vendor_id", Py_BuildValue("l", device.second.first));
+      add("product_id", Py_BuildValue("l", device.second.second));
+
+      if (PyList_Append(ret, dict) < 0)
+        throw std::runtime_error("PyList_Append");
+    }
+  }
+  catch (std::runtime_error& e)
+  {
+    PyErr_SetString(PyExc_MemoryError, e.what());
+    Py_XDECREF(ret);
+    ret = NULL;
+  }
+
+  for (auto ref : refs)
+    Py_XDECREF(ref);
+
   return ret;
 }
 
@@ -115,7 +145,7 @@ PyObject* get_report_data(PyObject *self, PyObject *args)
 
   if (ret)
   {
-    PyErr_SetString(PyExc_ValueError, "Couldn't get uhid report data");
+    PyErr_SetString(PyExc_RuntimeError, "Couldn't get uhid report data");
     return NULL;
   }
 
