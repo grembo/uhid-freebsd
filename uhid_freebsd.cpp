@@ -27,8 +27,13 @@ PyDoc_STRVAR(get_report_data_docs,
 
 static PyObject* enumerate(PyObject* self)
 {
-  auto devices =
-    std::map<std::string, std::pair<unsigned int, unsigned int>>();
+  struct DevInfo
+  {
+    unsigned int vendorId;
+    unsigned int productId;
+    std::string productDesc;
+  };
+  auto devices = std::map<std::string, DevInfo>();
 
   if (auto dirp = opendir("/dev"))
   {
@@ -36,40 +41,58 @@ static PyObject* enumerate(PyObject* self)
     while ((dp = readdir(dirp)) != NULL)
     {
       auto devRegex = std::regex("^uhid([0-9]{0,3})$");
-      std::cmatch cm;
-      if (!std::regex_match(dp->d_name, cm, devRegex))
+      std::cmatch cmDev;
+      if (!std::regex_match(dp->d_name, cmDev, devRegex))
         continue;
 
-      std::string name = "dev.uhid." + cm.str(1) + ".%pnpinfo";
-      int i;
-      int mib[4];
-      size_t len;
-      len = 4;
-      if (sysctlnametomib(name.c_str(), mib, &len))
-        continue;
-
-      char buffer[1024];
-      bzero(&buffer, sizeof(buffer));
-      len = sizeof(buffer) - 1;
-
-      if (sysctl(mib, 4, buffer, &len, NULL, 0) == -1)
-        continue;
-
+      std::string devId = cmDev.str(1);
       unsigned int vendorId = 0;
       unsigned int productId = 0;
+      std::string productDesc;
 
-      auto vendorRegex = std::regex("(vendor=)(0x[a-f0-9]{4})");
-      cm = std::cmatch{};
-      if (!std::regex_search(buffer, cm, vendorRegex))
-        continue;
-      vendorId = std::stoul(cm.str(2), nullptr, 16);
+      // get pnpinfo
+      {
+        std::string name = "dev.uhid." + devId + ".%pnpinfo";
+        int mib[4];
+        size_t len = 4;
+        if (sysctlnametomib(name.c_str(), mib, &len))
+          continue;
 
-      auto productRegex = std::regex("(product=)(0x[a-f0-9]{4})");
-      if (!std::regex_search(buffer, cm, productRegex))
-        continue;
+        char buffer[1024];
+        bzero(&buffer, sizeof(buffer));
+        len = sizeof(buffer) - 1;
 
-      productId = std::stoul(cm.str(2), nullptr, 16);
-      devices[dp->d_name] = {vendorId, productId};
+        if (sysctl(mib, 4, buffer, &len, NULL, 0) == -1)
+          continue;
+
+        auto vendorRegex = std::regex("(vendor=)(0x[a-f0-9]{4})");
+        std::cmatch cm;
+        if (!std::regex_search(buffer, cm, vendorRegex))
+          continue;
+        vendorId = std::stoul(cm.str(2), nullptr, 16);
+
+        auto productRegex = std::regex("(product=)(0x[a-f0-9]{4})");
+        if (!std::regex_search(buffer, cm, productRegex))
+          continue;
+        productId = std::stoul(cm.str(2), nullptr, 16);
+      }
+
+      // get desc (optional)
+      {
+        std::string name = "dev.uhid." + devId + ".%desc";
+        int mib[4];
+        size_t len = 4;
+        if (!sysctlnametomib(name.c_str(), mib, &len))
+        {
+          char buffer[1024];
+          bzero(&buffer, sizeof(buffer));
+          len = sizeof(buffer) - 1;
+
+          if (sysctl(mib, 4, buffer, &len, NULL, 0) != -1)
+            productDesc = buffer;
+        }
+      }
+      devices[dp->d_name] = {vendorId, productId, productDesc};
     }
     closedir(dirp);
   }
@@ -106,8 +129,10 @@ static PyObject* enumerate(PyObject* self)
       add("device", Py_BuildValue("s", device.first.c_str()));
       add("path", Py_BuildValue(
         "s", std::string("/dev/" + device.first).c_str()));
-      add("vendor_id", Py_BuildValue("l", device.second.first));
-      add("product_id", Py_BuildValue("l", device.second.second));
+      add("vendor_id", Py_BuildValue("l", device.second.vendorId));
+      add("product_id", Py_BuildValue("l", device.second.productId));
+      add("product_desc", Py_BuildValue(
+        "s", device.second.productDesc.c_str()));
 
       if (PyList_Append(ret, dict) < 0)
         throw std::runtime_error("PyList_Append");
