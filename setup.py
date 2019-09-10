@@ -3,7 +3,7 @@
 from distutils.core import setup, Extension
 setup(
     name='uhid-freebsd',
-    version='0.9',
+    version='1.0',
     author='Michael Gmelin',
     author_email='freebsd@grem.de',
     ext_modules=[Extension('uhid_freebsd', ['uhid_freebsd.cpp'])],
