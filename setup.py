@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name='uhid-freebsd',
-    version='1.0',
+    version='1.1.0',
     author='Michael Gmelin',
     author_email='freebsd@grem.de',
     ext_modules=[Extension('uhid_freebsd', ['uhid_freebsd.cpp'])],
