@@ -23,3 +23,10 @@ py36-test: py36
 
 py36-install: py36
 	python3.6 setup.py install
+
+clean:
+	rm -rf MANIFEST build dist uhid_freebsd.egg-info .gitignore~ *~
+
+dist:
+	python3.6 setup.py sdist
+	twine check dist/*.tar.gz

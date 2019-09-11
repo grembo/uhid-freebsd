@@ -1,2 +1,5 @@
-build
 *~
+build
+dist
+MANIFEST
+uhid_freebsd.egg-info

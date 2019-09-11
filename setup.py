@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
+
+def readme():
+    with open('README.rst') as f:
+        return f.read()
+
 setup(
     name='uhid-freebsd',
     version='1.0',
@@ -11,6 +16,8 @@ setup(
     maintainer_email='freebsd@grem.de',
     url='https://github.com/grembo/uhid-freebsd',
     description='Get information on FreeBSD uhid devices.',
+    long_description=readme(),
+    long_description_content_type='text/x-rst',
     license='BSD 2-Clause',
     platforms='FreeBSD',
     classifiers=[
