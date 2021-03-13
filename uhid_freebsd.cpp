@@ -32,6 +32,7 @@ static PyObject* enumerate(PyObject* self)
     unsigned int vendorId;
     unsigned int productId;
     std::string productDesc;
+    std::string serialNumber;
   };
   auto devices = std::map<std::string, DevInfo>();
 
@@ -49,6 +50,7 @@ static PyObject* enumerate(PyObject* self)
       unsigned int vendorId = 0;
       unsigned int productId = 0;
       std::string productDesc;
+      std::string serialNumber;
 
       // get pnpinfo
       {
@@ -75,6 +77,11 @@ static PyObject* enumerate(PyObject* self)
         if (!std::regex_search(buffer, cm, productRegex))
           continue;
         productId = std::stoul(cm.str(2), nullptr, 16);
+
+        // get serial number (optional)
+        auto serialRegex = std::regex("(sernum=\")([^\"]+)");
+        if (std::regex_search(buffer, cm, serialRegex))
+          serialNumber = cm.str(2);
       }
 
       // get desc (optional)
@@ -92,7 +99,7 @@ static PyObject* enumerate(PyObject* self)
             productDesc = buffer;
         }
       }
-      devices[dp->d_name] = {vendorId, productId, productDesc};
+      devices[dp->d_name] = {vendorId, productId, productDesc, serialNumber};
     }
     closedir(dirp);
   }
@@ -133,6 +140,8 @@ static PyObject* enumerate(PyObject* self)
       add("product_id", Py_BuildValue("l", device.second.productId));
       add("product_desc", Py_BuildValue(
         "s", device.second.productDesc.c_str()));
+      add("serial_number", Py_BuildValue(
+        "s", device.second.serialNumber.c_str()));
 
       if (PyList_Append(ret, dict) < 0)
         throw std::runtime_error("PyList_Append");
