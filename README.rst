@@ -11,15 +11,7 @@ Installation
 
 .. code-block:: bash
 
-   pkg install py36-uhid-freebsd
-
-or
-
-.. code-block:: bash
-
-   pkg install py27-uhid-freebsd
-
-or
+   pkg install py38-uhid-freebsd
 
 .. code-block:: bash
 
